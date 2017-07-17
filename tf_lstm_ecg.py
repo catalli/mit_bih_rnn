@@ -282,7 +282,7 @@ if __name__ == '__main__':
             print("Model vars saved in file: %s" % save_path)
         if error_sum/no_batches <= error_target:
             break
-	tvar = tf.trainable_variables
-	tvars_vals = sess.run(tvars)
-	for var, val in zip(tvars, tvars_vals):
-		print(var.name)
+    tvar = tf.trainable_variables()
+    tvars_vals = sess.run(tvars)
+    for var, val in zip(tvars, tvars_vals):
+        print(var.name)
