@@ -102,3 +102,10 @@ ENV/
 
 # macOS
 .DS_STORE
+
+# data
+logs/
+*.pkl
+*.log*
+mcmc_data/
+mit-bih-arr/
