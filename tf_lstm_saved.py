@@ -51,16 +51,7 @@ def feed_windows(_data, _window_skip, _window_len, _features_per_step):
         window_end_index+=_window_skip
     return data_seq
 
-data_train_or_test = data[2] 
-
-'''
-for i in range(len(data_train_or_test)):
-	choice = np.random.randint(0,10)
-	if choice == 0 and max(data[1][i]) > 0.9 and test_quotas[np.argmax(data[1][i])] > 0:
-		data_train_or_test[i] = 1
-		test_quotas[np.argmax(data[1][i])]-=1
-'''
-
+data_train_or_test = data[2]
 no_train = len(data_train_or_test)-np.sum(data_train_or_test)
 no_test = np.sum(data_train_or_test)
 
@@ -80,49 +71,6 @@ for i in range(len(data_train_or_test)):
                 true_data[0][0][train_index] = feed_windows(data[0][i],window_skip,window_length,len(data[0][0][0]))
                 true_data[0][1][train_index] = data[1][i]
                 train_index+=1
-'''
-mcmc_train_x = open(mcmc_train_x_path, "w")
-mcmc_train_y = open(mcmc_train_y_path, "w")
-
-mcmc_test_x = open(mcmc_test_x_path, "w")
-mcmc_test_y = open(mcmc_test_y_path, "w")
-
-
-for i in range(no_train):
-	for j in range(len(data[0][0])):
-		if max(true_data[0][0][i][j]) == 0.0:
-			break
-		for k in range(no_features-1):
-			mcmc_train_x.write(str(true_data[0][0][i][j][k]))
-			mcmc_train_x.write("\t")
-		if max(true_data[0][1][i]) > 0.9:
-			mcmc_train_y.write(str(np.float32(np.argmax(true_data[0][1][i]))))
-		else:
-			mcmc_train_y.write(str(np.float32(len(data[1][0]))))
-		mcmc_train_y.write("\n")
-		mcmc_train_x.write(str(true_data[0][0][i][j][no_features-1]))
-		mcmc_train_x.write("\n")
-
-for i in range(no_test):
-        for j in range(len(data[0][0])):
-		if max(true_data[1][0][i][j]) == 0.0:
-			break
-                for k in range(no_features-1):
-                        mcmc_test_x.write(str(true_data[1][0][i][j][k]))
-                        mcmc_test_x.write("\t")
-                if max(true_data[1][1][i]) > 0.9:
-                        mcmc_test_y.write(str(np.float32(np.argmax(true_data[1][1][i]))))
-                else:
-                        mcmc_test_y.write(str(np.float32(len(data[1][0]))))
-                mcmc_test_y.write("\n")
-                mcmc_test_x.write(str(true_data[1][0][i][j][no_features-1]))
-                mcmc_test_x.write("\n")
-
-mcmc_train_x.close()
-mcmc_train_y.close()
-mcmc_test_x.close()
-mcmc_test_y.close()
-'''
 
 def lazy_property(function):
     attribute = '_' + function.__name__
@@ -135,6 +83,7 @@ def lazy_property(function):
         return getattr(self, attribute)
     return wrapper
 
+# Class definition modified from Danijar Hafner's example at https://gist.github.com/danijar/3f3b547ff68effb03e20c470af22c696
 
 class VariableSequenceClassification:
 
@@ -211,12 +160,10 @@ class VariableSequenceClassification:
     def error(self):
         mistakes = tf.not_equal(
             tf.argmax(self.target, 1), tf.argmax(self.prediction, 1))
-	print("Mistakes: ",mistakes)
         return tf.reduce_mean(tf.cast(mistakes, tf.float32))
 
     @staticmethod
     def _weight_and_bias(in_size, out_size):
-	#weight = tf.truncated_normal([in_size, out_size], stddev=0.01)
         weight = tf.get_variable("weight", shape=[in_size,out_size], initializer=tf.contrib.layers.xavier_initializer())
         bias = tf.constant(0.1, shape=[out_size], dtype=tf.float32)
         return weight, tf.Variable(bias)
@@ -235,7 +182,6 @@ class VariableSequenceClassification:
 
 
 if __name__ == '__main__':
-    # We treat images as sequences of pixel rows.
     all_data = true_data
     train = all_data[0]
     test = all_data[1]
@@ -248,13 +194,13 @@ if __name__ == '__main__':
     target = tf.placeholder(tf.float32, [None, num_classes])
     model = VariableSequenceClassification(data, target)
     sess = tf.Session()
-    sess.run(tf.global_variables_initializer()) 
+    sess.run(tf.global_variables_initializer())
     print(test[0].shape,test[1].shape)
     saver = tf.train.Saver()
-    sess.run(model.error, feed_dict={data:test[0][:batch_size], target:test[1][:batch_size]}) 
+    sess.run(model.error, feed_dict={data:test[0][:batch_size], target:test[1][:batch_size]})
     saver.restore(sess, _save_path)
     test_pred_targets = np.zeros((batch_size*no_batches), dtype=np.int32)
-    test_pred_int = np.zeros((batch_size*no_batches), dtype=np.int32) 
+    test_pred_int = np.zeros((batch_size*no_batches), dtype=np.int32)
     for i in range(no_batches):
         batch_data = test[0][i*batch_size:(i+1)*batch_size]
         batch_target = test[1][i*batch_size:(i+1)*batch_size]
@@ -264,7 +210,7 @@ if __name__ == '__main__':
             test_pred_targets[j] = np.argmax(test[1][j])
             test_pred_int[j] = np.argmax(pred[j-i*batch_size])
         print('Test batch {:2d} error {:3.1f}%'.format(i+1, 100*error))
-    
+
 
     conf_mat = tf.confusion_matrix(
         labels=tf.convert_to_tensor(test_pred_targets,dtype=tf.int32),
@@ -284,40 +230,3 @@ if __name__ == '__main__':
             batch_target = train[1][i*batch_size:(i+1)*batch_size]
             error = sess.run(model.error, feed_dict={data:batch_data, target:batch_target})
             print('Train batch {:2d} error {:3.1f}%'.format(i+1, 100*error))
-
-    '''
-    for epoch in range(50):
-        for i in range(no_batches):
-            batch_data = train[0][i*batch_size:(i+1)*batch_size]
-            batch_target = train[1][i*batch_size:(i+1)*batch_size]
-            sess.run(model.optimize, feed_dict={data: batch_data, target: batch_target})
-            train_error = sess.run(model.error, feed_dict={data:batch_data, target: batch_target})
-            print('Epoch {:2d} train batch {:2d} error {:3.1f}%'.format(epoch+1, i+1, 100*train_error))
-            pred=sess.run(model.prediction,feed_dict={data: batch_data, target: batch_target})
-            print("pred: ", pred)
-            print("pred-batch_target: ",pred-batch_target)
-        
-        #error = sess.run(model.error, feed_dict={data: test[0], target: test[1]})
-        #print('Epoch {:2d} test error {:3.1f}%'.format(epoch + 1, 100 * error))
-	test_pred = sess.run(model.prediction,feed_dict={data:test[0], target: test[1]})
-	test_pred_int = np.zeros((len(test_pred)),dtype=np.int32)
-	test_pred_targets = np.zeros((len(test_pred)),dtype=np.int32)
-	test_pred_weights = np.zeros((len(test_pred)),dtype=np.int32)
-	for x in range(len(test_pred)):
-		class_int = np.argmax(test_pred[x])
-		target_int = np.argmax(test[1][x])
-		test_pred_int[x] = class_int
-		test_pred_targets[x] = target_int
-		test_pred_weights[x] = int(conf_weights[class_int])
-	conf_mat = tf.contrib.metrics.confusion_matrix(
-		tf.convert_to_tensor(test_pred_targets,dtype=tf.int32),
-		tf.convert_to_tensor(test_pred_int,dtype=tf.int32),
-		num_classes = 14,
-		weights = tf.convert_to_tensor(test_pred_weights,dtype=tf.int32))
-	print('Confusion matrix:\n',conf_mat)
-	variables_names = [v.name for v in tf.trainable_variables()]
-	values = sess.run(variables_names)
-	print('Trainable variable values:')
-	for k, v in zip(variables_names, values):
-		print (k, v)
-    '''

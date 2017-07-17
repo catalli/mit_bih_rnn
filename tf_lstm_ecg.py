@@ -27,6 +27,8 @@ if len(sys.argv) > 1:
 else:
 	_save_path = ''.join([script_path, '/logs/vars/tmp/model.ckpt'])
 
+_cluster_path = ''.join([_save_path, '.clustered'])
+
 data_file = open(data_path, 'r')
 
 data = pickle.load(data_file)
@@ -55,15 +57,7 @@ def feed_windows(_data, _window_skip, _window_len, _features_per_step):
         window_end_index+=_window_skip
     return data_seq
 
-data_train_or_test = data[2] 
-
-'''
-for i in range(len(data_train_or_test)):
-	choice = np.random.randint(0,10)
-	if choice == 0 and max(data[1][i]) > 0.9 and test_quotas[np.argmax(data[1][i])] > 0:
-		data_train_or_test[i] = 1
-		test_quotas[np.argmax(data[1][i])]-=1
-'''
+data_train_or_test = data[2]
 
 no_train = len(data_train_or_test)-np.sum(data_train_or_test)
 no_test = np.sum(data_train_or_test)
@@ -157,6 +151,8 @@ def lazy_property(function):
         return getattr(self, attribute)
     return wrapper
 
+# Class definition modified from Danijar Hafner's example at https://gist.github.com/danijar/3f3b547ff68effb03e20c470af22c696
+
 class VariableSequenceClassification:
 
     def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
@@ -209,7 +205,7 @@ class VariableSequenceClassification:
                 fc_layers.append(tf.contrib.layers.fully_connected(fc_layers[self._num_fc-2], self._fc_len))
             last_before_softmax = fc_layers[self._num_fc-1]
             out_num = self._fc_len
-                
+
         # Softmax layer.
         weight, bias = self._weight_and_bias(
             out_num, int(self.target.get_shape()[1]))
@@ -233,12 +229,10 @@ class VariableSequenceClassification:
     def error(self):
         mistakes = tf.not_equal(
             tf.argmax(self.target, 1), tf.argmax(self.prediction, 1))
-	#print("Mistakes: ",mistakes)
         return tf.reduce_mean(tf.cast(mistakes, tf.float32))
 
     @staticmethod
     def _weight_and_bias(in_size, out_size):
-	#weight = tf.truncated_normal([in_size, out_size], stddev=0.01)
         weight = tf.get_variable("weight", shape=[in_size,out_size], initializer=tf.contrib.layers.xavier_initializer())
         bias = tf.constant(0.1, shape=[out_size], dtype=tf.float32)
         return weight, tf.Variable(bias)
@@ -257,7 +251,6 @@ class VariableSequenceClassification:
 
 
 if __name__ == '__main__':
-    # We treat images as sequences of pixel rows.
     all_data = true_data
     train = all_data[0]
     test = all_data[1]
@@ -273,9 +266,9 @@ if __name__ == '__main__':
     sess.run(tf.global_variables_initializer())
 
     print(test[0].shape,test[1].shape)
-    saver = tf.train.Saver() 
+    saver = tf.train.Saver()
     for epoch in range(400):
-        error_sum = 0.0 
+        error_sum = 0.0
         for i in range(no_batches):
             batch_data = train[0][i*batch_size:(i+1)*batch_size]
             batch_target = train[1][i*batch_size:(i+1)*batch_size]
@@ -284,33 +277,12 @@ if __name__ == '__main__':
             print('Epoch {:2d} train batch {:2d} error {:3.1f}%'.format(epoch+1, i+1, 100*train_error))
             error_sum+=100*train_error
             pred=sess.run(model.prediction,feed_dict={data: batch_data, target: batch_target})
-            #print("pred: ", pred)
-            #print("pred-batch_target: ",pred-batch_target)
         if (epoch+1)%5 == 0 or error_sum/no_batches <= error_target:
             save_path = saver.save(sess, _save_path, global_step=epoch)
             print("Model vars saved in file: %s" % save_path)
         if error_sum/no_batches <= error_target:
             break
-	'''
-	test_pred = sess.run(model.prediction,feed_dict={data:test[0], target: test[1]})
-	test_pred_int = np.zeros((len(test_pred)),dtype=np.int32)
-	test_pred_targets = np.zeros((len(test_pred)),dtype=np.int32)
-	test_pred_weights = np.zeros((len(test_pred)),dtype=np.int32)
-	for x in range(len(test_pred)):
-		class_int = np.argmax(test_pred[x])
-		target_int = np.argmax(test[1][x])
-		test_pred_int[x] = class_int
-		test_pred_targets[x] = target_int
-		test_pred_weights[x] = int(conf_weights[class_int])
-	conf_mat = tf.contrib.metrics.confusion_matrix(
-		tf.convert_to_tensor(test_pred_targets,dtype=tf.int32),
-		tf.convert_to_tensor(test_pred_int,dtype=tf.int32),
-		num_classes = 14,
-		weights = tf.convert_to_tensor(test_pred_weights,dtype=tf.int32))
-	print('Confusion matrix:\n',conf_mat)
-	variables_names = [v.name for v in tf.trainable_variables()]
-	values = sess.run(variables_names)
-	print('Trainable variable values:')
-	for k, v in zip(variables_names, values):
-		print (k, v)
-	'''
+	tvar = tf.trainable_variables
+	tvars_vals = sess.run(tvars)
+	for var, val in zip(tvars, tvars_vals):
+		print(var.name)

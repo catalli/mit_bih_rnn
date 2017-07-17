@@ -1,7 +1,9 @@
+# This code provided by Mohammad Samragh Razlighi from ACES Lab.
+
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-import keras 
+import keras
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors as NNeigh
 from keras.models import Sequential, Model
@@ -71,22 +73,22 @@ class cluster(object):
 		else:
 			self.num_clusters_next_levels=num_clusters[1:]
 			self.add_sub_clusters()
-		
 
-		
-			
+
+
+
 	def add_sub_clusters(self):
 		#this function clusters each sub_group into "num_clusters" clusters
 		#first separate the original weights to the encoded clusters:
 		self.sub_clusters=[]
 		for i in range(self.num_clusters):
-			
+
 			this_sub_cluster_weights=self.original_weights[self.encodings==(i+self.encoding_offset)]
 			self.sub_clusters.append(cluster(num_clusters=self.num_clusters_next_levels,
 				encoding_offset=(self.encoding_offset+i)*self.num_clusters_next_levels[0],
 				original_weights=this_sub_cluster_weights,
 				depth=self.depth+1))
-	
+
 	def tree_search_nn(self,w,depth=0):
 		#this function retrieves the colosest clusters from a specific depth
 		#w: the weights to be clustered. weights should flattened
@@ -136,12 +138,12 @@ class quantize_dense_ (Layer):
 		agmin=tf.argmin(abs_,axis=1)
 		#print_activations(agmin)
 		quantized=tf.gather(self.codebook,agmin)
-		
+
 		inp_cond=tf.cond(self.exact_quantized,lambda:x,lambda:quantized)
 		#print inp_cond.get_shape()
 		return inp_cond
 	def get_output_shape_for(self,input_shape):
-		return input_shape	
+		return input_shape
 
 class quantize_conv_ (Layer):
 	def __init__(self, codebook,exact_quantized,**kwargs):
@@ -215,7 +217,7 @@ def bucketize_model_params(model,clusters_per_level,depth):
 	#clusters per layer: number of clusters in each level of the tree
 	#depth: the depth from which the leaves are picked
 	for layer in model.layers:
-		if string_match('convolution2d',layer.name):		
+		if string_match('convolution2d',layer.name):
 			quantize_weights(layer,clusters_per_level=clusters_per_level,depth=depth,alltogether=False)
 			#codebook=layer_codebook_finder(X_train[0:100],input=model.input,output=model.output,clusters_per_level=conv_clusters_act,depth=conv_depth)
 			#model.add(quantize_conv_(codebook,False))
@@ -230,188 +232,3 @@ def model_exact_or_quantize(model,exact_quantized):
 	for layer in model.layers:
 		if string_match('quantize_dense_',layer.name) or string_match('quantize_conv_',layer.name):
 			layer.set_exact_quantized(exact_quantized)
-
-
-'''
-
-batch_size = 32
-num_classes = 19
-epochs = 100
-
-
-dataset='DAS_o'
-Train=False
-# the data, shuffled and split between train and test sets
-if dataset=='mnist':
-	(X_train, y_train), (X_test, y_test) = mnist.load_data()
-if dataset=='Isolet_o' or dataset=='DAS_o' or dataset=='InnLoc_NB':
-	foo=open('../data/'+dataset+'.pkl','rb')
-	data=pickle.load(foo)
-	X_train=np.concatenate((data[0][0],data[1][0]))
-	y_train=np.concatenate((data[0][1],data[1][1])).astype(np.int32)
-	X_test=data[2][0]
-	y_test=data[2][1].astype(np.int32)
-	minim=np.min(y_train)
-	y_train=y_train-minim
-	y_test=y_test-minim
-
-X_train = X_train.astype('float32')
-X_test = X_test.astype('float32')
-if dataset=='mnist':
-	X_train = X_train.reshape(60000, 784)/255
-	X_test = X_test.reshape(10000, 784)/255
-elif dataset=='DAS_o':
-	var=np.var(X_train,axis=0)
-	ind=np.where(var==0)
-	var[ind]=1;
-	mean=np.mean(X_train,axis=0)
-	for i in range(X_train.shape[0]):
-		X_train[i]=(X_train[i]-mean)/var
-	for i in range(X_test.shape[0]):
-		X_test[i]=(X_test[i]-mean)/var
-
-
-print('X_train shape:', X_train.shape)
-print(X_train.shape[0], 'train samples')
-print(X_test.shape[0], 'test samples')
-
-# convert class vectors to binary class matrices
-Y_train = np_utils.to_categorical(y_train, num_classes)
-Y_test = np_utils.to_categorical(y_test, num_classes)
-X_train = X_train.astype('float32')
-X_test = X_test.astype('float32')
-
-
-
-
-if Train:
-	model=Sequential()
-	model.add(Dense(512,activation='relu',input_shape=X_train.shape[1:]))
-	model.add(Dropout(0.5))
-	model.add(Dense(512,activation='relu'))
-	model.add(Dropout(0.5))
-	model.add(Dense(num_classes,activation='softmax'))
-				
-	sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-	model.compile(loss='categorical_crossentropy',
-		          optimizer=sgd,
-		          metrics=['accuracy'])
-	
-	model.fit(X_train, Y_train,
-				batch_size=batch_size,
-				nb_epoch=epochs,
-				validation_data=(X_test, Y_test),
-				verbose=2)
-	model.save(dataset+'.h5')
-else:
-	accs=[]
-	model1=load_model(dataset+'.h5')
-	sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-	model1.compile(loss='categorical_crossentropy',
-		          optimizer=sgd,
-		          metrics=['accuracy'])
-	
-	orig_acc=model1.evaluate(x=X_test,y=Y_test)[1]
-	print 'baseline accuracy is:',orig_acc
-	#model1.summary()
-	for clusters_per_level in [[2],[4],[2,4],[2,8],[4,8],[4,16]]:
-		depth=len(clusters_per_level)-1
-		
-		model=Sequential()
-		cl=cluster(clusters_per_level,X_train[0:500])
-		IdontCare,codebook=cl.tree_search_nn(X_train[0:1],depth)
-		model.add(quantize_dense_(codebook,True,input_shape=X_train.shape[1:],trainable=False))
-		for i in range(len(model1.layers)): 
-			layer=model1.layers[i]
-			#print layer.name
-			if string_match('convolution2d',layer.name):		
-				model.add(Convolution2D(nb_filter=layer.nb_filter, 
-					nb_row=layer.nb_row, 
-					nb_col=layer.nb_col, 
-					border_mode=layer.border_mode,
-					activation=layer.activation,
-					weights=layer.get_weights(),
-					input_shape=X_train.shape[1:]))
-				#quantize_weights(model.layers[-1],clusters_per_level=clusters_per_level,depth=depth)
-				codebook=layer_codebook_finder(X_train[0:100],input=model.input,output=model.output,clusters_per_level=clusters_per_level,depth=depth)
-				model.add(quantize_conv_(codebook,False,trainable=False))
-			if string_match('maxpooling2d',layer.name):
-				model.add(MaxPooling2D(pool_size=layer.pool_size,strides=layer.strides))
-				
-			if string_match('dense',layer.name):
-				model.add(Dense(output_dim=layer.output_dim,
-								weights=layer.get_weights(),
-								activation=layer.activation))
-				#quantize_weights(model.layers[-1],clusters_per_level=clusters_per_level,depth=depth)
-				codebook=layer_codebook_finder(X_train[0:100],input=model.input,output=model.output,clusters_per_level=clusters_per_level,depth=depth)
-				model.add(quantize_dense_(codebook,False,trainable=False))
-				
-			if string_match('flatten',layer.name):
-				model.add(Flatten())
-				
-			if string_match('dropout',layer.name):
-				model.add(Dropout(0.5))
-				
-		#model.summary()
-		sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-		model.compile(loss='categorical_crossentropy',
-			          optimizer=sgd,
-			          metrics=['accuracy'])
-		
-		accs_this=[]
-		dict_={}
-		for clusters_per_level_weight in [[2],[4],[2,4],[2,8],[4,8],[8,8]]:
-			
-			depth=len(clusters_per_level_weight)-1
-			for i in range(1):
-				t0_iter=time.time()
-				#print i
-				#disable activation quantization:
-				#
-				#print 'weights original, activations original:',model.evaluate(x=X_test,y=Y_test)
-				"""if i==0:
-														w=model.layers[-2].get_weights()[0]
-														w=np.ravel(w)
-														dict_['before_cluster']=w
-														h,b=np.histogram(w,bins=1000)
-														plt.bar(b[0:-1],h,width=0.001)
-														plt.show()
-										"""
-				model_exact_or_quantize(model,False)
-				bucketize_model_params(model,clusters_per_level_weight,depth)
-				"""if i==0:
-														w=model.layers[-2].get_weights()[0]
-														w=np.ravel(w)
-														dict_['after_cluster']=w
-														h,b=np.histogram(w,bins=1000)
-														plt.bar(b[0:-1],h,width=0.001)
-														plt.show()"""
-				#print 'weights quantized, activations original:',model.evaluate(x=X_test,y=Y_test)
-				#model_exact_or_quantize(model,False)
-				acc=model.evaluate(x=X_test,y=Y_test,verbose=0)
-				#errs.append(1-acc[1])
-				#print 'weights quantized, activations quantized:',acc
-				#model_exact_or_quantize(model,True)
-				# Fit the model on the batches generated by datagen.flow().
-				model_exact_or_quantize(model,True)
-				model.fit(X_train, Y_train,
-									batch_size=batch_size,
-									nb_epoch=1,
-									validation_data=(X_test, Y_test),
-									verbose=0)
-				"""if i==0:
-														w=model.layers[-2].get_weights()[0]
-														w=np.ravel(w)
-														dict_['after_retrain']=w
-														h,b=np.histogram(w,bins=1000)
-														plt.bar(b[0:-1],h,width=0.001)
-														plt.show()"""
-				t1_iter=time.time()
-			#dict_['errs']=errs
-			accs_this.append(orig_acc-acc[1])
-			print 'activation:',clusters_per_level,'weight:',clusters_per_level_weight,'err:',orig_acc-acc[1],'delay:',5*(t1_iter-t0_iter)
-		accs.append(accs_this)
-	foo=open(dataset+'.pkl','wb')
-	#pickle.dump(accs,foo)
-	foo.close()
-'''

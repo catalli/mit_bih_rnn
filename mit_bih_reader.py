@@ -43,7 +43,6 @@ test_quotas = [250,250,250,250,74,41,1,250,250,8,113,53,250,250,236]
 for f in file_names:
 	record = wfdb.rdsamp(f)
 	annotation = wfdb.rdann(f, 'atr')
-	#print("Record Name: ",annotation.recordname,"\nannsamp: ",annotation.annsamp,"\nanntype: ",annotation.anntype)
 	beat_anns = [record.recordname]
 	real_beat_anns = [record.recordname]
 	for a in range(len(annotation.annsamp)):
