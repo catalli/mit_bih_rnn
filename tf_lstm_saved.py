@@ -224,7 +224,7 @@ if __name__ == '__main__':
     num_classes = len(train[1][0])
     no_batches = no_examples/batch_size
 
-    tvar = tf.trainable_variables()
+    tvars = tf.trainable_variables()
     tvars_vals = sess.run(tvars)
     for var, val in zip(tvars, tvars_vals):
         print(var.name)
