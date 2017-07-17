@@ -201,16 +201,19 @@ if __name__ == '__main__':
     saver.restore(sess, _save_path)
     test_pred_targets = np.zeros((batch_size*no_batches), dtype=np.int32)
     test_pred_int = np.zeros((batch_size*no_batches), dtype=np.int32)
+    error_sum = 0.0
     for i in range(no_batches):
         batch_data = test[0][i*batch_size:(i+1)*batch_size]
         batch_target = test[1][i*batch_size:(i+1)*batch_size]
         error = sess.run(model.error, feed_dict={data:batch_data, target:batch_target})
+        error_sum+=error*100.0
         pred = sess.run(model.prediction, feed_dict={data:batch_data, target:batch_target})
         for j in range(i*batch_size,(i+1)*batch_size):
             test_pred_targets[j] = np.argmax(test[1][j])
             test_pred_int[j] = np.argmax(pred[j-i*batch_size])
         print('Test batch {:2d} error {:3.1f}%'.format(i+1, 100*error))
 
+    print('Total error: {:3.1f}%'.format(error_sum/no_batches))
 
     conf_mat = tf.confusion_matrix(
         labels=tf.convert_to_tensor(test_pred_targets,dtype=tf.int32),
@@ -223,11 +226,6 @@ if __name__ == '__main__':
     no_examples, rows, row_size = train[0].shape
     num_classes = len(train[1][0])
     no_batches = no_examples/batch_size
-
-    tvars = tf.trainable_variables()
-    tvars_vals = sess.run(tvars)
-    for var, val in zip(tvars, tvars_vals):
-        print(var.name)
 		
     if False:
         for i in range(no_batches):

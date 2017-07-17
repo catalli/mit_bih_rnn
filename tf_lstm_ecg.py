@@ -22,12 +22,12 @@ mcmc_test_x_path = ''.join([script_path, "/mcmc_data/mcmc_test_x1.dat"])
 mcmc_test_y_path = ''.join([script_path, "/mcmc_data/mcmc_test_y1.dat"])
 
 if len(sys.argv) > 1:
-	_save_path = sys.argv[1]
+	_base_save_path = sys.argv[1]
 
 else:
-	_save_path = ''.join([script_path, '/logs/vars/tmp/model.ckpt'])
+	_base_save_path = ''.join([script_path, '/logs/vars/tmp/model.ckpt'])
 
-_cluster_path = ''.join([_save_path, '.clustered'])
+_cluster_path = ''.join([_base_save_path, '.clustered'])
 
 data_file = open(data_path, 'r')
 
@@ -41,8 +41,13 @@ window_skip = 1
 
 no_features = window_length * len(data[0][0][0])
 
+no_epochs = 400
+no_centroids = 4
+no_macro_epochs = 10
+
 #Non-patient-specific-training error target from state-of-the-art of 2017: http://ieeexplore.ieee.org/document/7893269/
 error_target = 1.0
+clustered_error_target = 2.0
 
 def feed_windows(_data, _window_skip, _window_len, _features_per_step):
     data_seq = np.zeros((len(_data),_window_len*_features_per_step))
@@ -267,22 +272,46 @@ if __name__ == '__main__':
 
     print(test[0].shape,test[1].shape)
     saver = tf.train.Saver()
-    for epoch in range(400):
+    for macro_epoch in range(no_macro_epochs):
+        _save_path = ''.join([_base_save_path, '-', str(macro_epoch+1)])
+        for epoch in range(no_epochs):
+            error_sum = 0.0
+            for i in range(no_batches):
+                batch_data = train[0][i*batch_size:(i+1)*batch_size]
+                batch_target = train[1][i*batch_size:(i+1)*batch_size]
+                sess.run(model.optimize, feed_dict={data: batch_data, target: batch_target})
+                train_error = sess.run(model.error, feed_dict={data:batch_data, target: batch_target})
+                error_sum+=100*train_error
+                print('Macro-Epoch {:2d} Epoch {:2d} train batch {:2d} error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, epoch+1, i+1, 100*train_error, error_sum/(float(i+1))))
+            if (epoch+1)%5 == 0 or error_sum/no_batches <= error_target:
+                save_path = saver.save(sess, _save_path, global_step=epoch+1)
+                print("Model vars saved in file: %s" % save_path)
+            if error_sum/no_batches <= error_target:
+                break
+
+        tvars = tf.trainable_variables()
+        tvars_vals = sess.run(tvars)
+        for var, val in zip(tvars, tvars_vals):
+            print(var.name, type(val))
+            if not 'bias' in var.name:
+                clu = cluster(no_centroids, val)
+                newval_keys, newvals = clu.tree_search_nn(val)
+                true_newvals = np.zeros((len(newval_keys)), dtype=np.float32)
+                for i in range(len(newval_keys)):
+                    true_newvals[i] = newvals[newval_keys[i]]
+                var.assign(np.reshape(true_newvals,val.shape)).eval(session = sess)
+                del clu
+
+        tvars = tf.trainable_variables()
+        tvars_vals = sess.run(tvars)
+        cluster_save_path = saver.save(sess, _cluster_path, global_step=macro_epoch+1)
+        print("Clustered model vars saved in file: %s" % cluster_save_path)
         error_sum = 0.0
         for i in range(no_batches):
             batch_data = train[0][i*batch_size:(i+1)*batch_size]
             batch_target = train[1][i*batch_size:(i+1)*batch_size]
-            sess.run(model.optimize, feed_dict={data: batch_data, target: batch_target})
-            train_error = sess.run(model.error, feed_dict={data:batch_data, target: batch_target})
-            print('Epoch {:2d} train batch {:2d} error {:3.1f}%'.format(epoch+1, i+1, 100*train_error))
-            error_sum+=100*train_error
-            pred=sess.run(model.prediction,feed_dict={data: batch_data, target: batch_target})
-        if (epoch+1)%5 == 0 or error_sum/no_batches <= error_target:
-            save_path = saver.save(sess, _save_path, global_step=epoch)
-            print("Model vars saved in file: %s" % save_path)
-        if error_sum/no_batches <= error_target:
+            error = sess.run(model.error, feed_dict = {data:batch_data, target:batch_target})
+            error_sum+=100*error
+            print('Macro-Epoch {:2d} Batch {:2d} clustered error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, i+1, 100*error, error_sum/(float(i+1))))
+        if error_sum/no_batches <= clustered_error_target:
             break
-    tvars = tf.trainable_variables()
-    tvars_vals = sess.run(tvars)
-    for var, val in zip(tvars, tvars_vals):
-        print(var.name)
