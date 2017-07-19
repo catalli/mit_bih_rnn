@@ -228,7 +228,6 @@ class VariableSequenceClassification:
         learning_rate = 0.01
 	momentum = 0.0
         optimizer = tf.train.RMSPropOptimizer(learning_rate)
-        x = optimizer.compute_gradients(self.cost)
         return optimizer.minimize(self.cost)
 
     @lazy_property
