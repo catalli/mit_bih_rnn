@@ -156,9 +156,33 @@ def lazy_property(function):
         return getattr(self, attribute)
     return wrapper
 
-# Class definition modified from Danijar Hafner's example at https://gist.github.com/danijar/3f3b547ff68effb03e20c470af22c696
 
-class VariableSequenceClassification:
+def grad_fixed(grad,encoding):
+	#this function takes gradient and encoding, it returns the average gradients for each encoding
+	n_clusters=np.max(encoding)+1
+	
+	masks=[]
+	for enc in range(n_clusters):
+		inds=numpy.where(encoding == enc)[0]
+		w=np.zeros(encoding.shape,dtype=np.float32)
+		w[inds]=1
+		masks.append(tf.constant(w))
+
+	inds=numpy.where(encoding == 0)[0]
+	gg=tf.gather_nd(grad,indices=inds)
+	gg=tf.reduce_mean(gg)
+	out_grad=gg*mask[0]	
+	for enc in range(1,n_clusters):
+		inds=numpy.where(encoding == enc)[0]
+		gg=tf.gather_nd(grad,indices=inds)
+		gg=tf.reduce_mean(gg)
+		out_grad=out_grad+gg*mask[enc]
+
+	return out_grad	
+		
+			
+# Class definition modified from Danijar Hafner's example at https://gist.github.com/danijar/3f3b547ff68effb03e20c470af22c696
+class VariableSequenceClassificationSharedWeights:
 
     def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
         self.data = data
@@ -167,6 +191,7 @@ class VariableSequenceClassification:
         self._num_layers = num_layers
         self._num_fc = num_fc
         self._fc_len = fc_len
+        self.encodings = []
         self.prediction
         self.error
         self.optimize
@@ -227,8 +252,16 @@ class VariableSequenceClassification:
     def optimize(self):
         learning_rate = 0.01
 	momentum = 0.0
+        self.optimizer = tf.train.RMSPropOptimizer(learning_rate)
+        return self.optimizer.minimize(self.cost)
+
+    @lazy_property
+    def optimize_ws(self):
+        learning_rate = 0.01
+	momentum = 0.0
+        x = self.optimizer.compute_gradients(self.cost)
+	
         optimizer = tf.train.RMSPropOptimizer(learning_rate)
-        x = optimizer.compute_gradients(self.cost)
         return optimizer.minimize(self.cost)
 
     @lazy_property
@@ -267,52 +300,53 @@ if __name__ == '__main__':
     no_batches = no_examples/batch_size
     data = tf.placeholder(tf.float32, [None, rows, row_size])
     target = tf.placeholder(tf.float32, [None, num_classes])
-    model = VariableSequenceClassification(data, target)
+    model = VariableSequenceClassificationWithSharing(data, target)
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
     print(test[0].shape,test[1].shape)
     saver = tf.train.Saver()
+    
+    # Implementing random weight sharing as described in https://arxiv.org/pdf/1504.04788.pdf
     for macro_epoch in range(no_macro_epochs):
         _save_path = ''.join([_base_save_path, '-', str(macro_epoch+1)])
-        for epoch in range(no_epochs):
-            error_sum = 0.0
-            for i in range(no_batches):
-                batch_data = train[0][i*batch_size:(i+1)*batch_size]
-                batch_target = train[1][i*batch_size:(i+1)*batch_size]
-                sess.run(model.optimize, feed_dict={data: batch_data, target: batch_target})
-                train_error = sess.run(model.error, feed_dict={data:batch_data, target: batch_target})
-                error_sum+=100*train_error
-                print('Macro-Epoch {:2d} Epoch {:2d} train batch {:2d} error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, epoch+1, i+1, 100*train_error, error_sum/(float(i+1))))
-            if (epoch+1)%5 == 0 or error_sum/no_batches <= error_target:
-                save_path = saver.save(sess, _save_path, global_step=epoch+1)
-                print("Model vars saved in file: %s" % save_path)
-            if error_sum/no_batches <= error_target:
-                break
+        if macro_epoch == 0:
+            for epoch in range(no_epochs):
+                error_sum = 0.0
+                for i in range(no_batches):
+                    batch_data = train[0][i*batch_size:(i+1)*batch_size]
+                    batch_target = train[1][i*batch_size:(i+1)*batch_size]
+                    sess.run(model.optimize, feed_dict={data: batch_data, target: batch_target})
+                    train_error = sess.run(model.error, feed_dict={data:batch_data, target: batch_target})
+                    error_sum+=100*train_error
+                    print('Macro-Epoch {:2d} Epoch {:2d} train batch {:2d} error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, epoch+1, i+1, 100*train_error, error_sum/(float(i+1))))
+                if (epoch+1)%5 == 0 or error_sum/no_batches <= error_target:
+                    save_path = saver.save(sess, _save_path, global_step=epoch+1)
+                    print("Model vars saved in file: %s" % save_path)
+                if error_sum/no_batches <= error_target:
+                    break
 
-        tvars = tf.trainable_variables()
-        tvars_vals = sess.run(tvars)
-        for var, val in zip(tvars, tvars_vals):
-            print(var.name, type(val))
-            if not 'bias' in var.name:
-                clu = cluster(no_centroids, val)
-                newval_keys, newvals = clu.tree_search_nn(val)
-                true_newvals = np.zeros((len(newval_keys)), dtype=np.float32)
-                for i in range(len(newval_keys)):
-                    true_newvals[i] = newvals[newval_keys[i]]
-                var.assign(np.reshape(true_newvals,val.shape)).eval(session = sess)
-                del clu
+            tvars = tf.trainable_variables()
+            tvars_vals = sess.run(tvars)
+            for var, val in zip(tvars, tvars_vals):
+                print(var.name, type(val))
+                if not 'bias' in var.name:
+                    clu = cluster(no_centroids, val)
+                    newval_keys, newvals = clu.tree_search_nn(val)
+                    true_newvals = np.zeros((len(newval_keys)), dtype=np.float32)
+                    for i in range(len(newval_keys)):
+                        true_newvals[i] = newvals[newval_keys[i]]
+                    var.assign(np.reshape(true_newvals,val.shape)).eval(session = sess)
+                    del clu
 
-        tvars = tf.trainable_variables()
-        tvars_vals = sess.run(tvars)
         cluster_save_path = saver.save(sess, _cluster_path, global_step=macro_epoch+1)
-        print("Clustered model vars saved in file: %s" % cluster_save_path)
+        print("Shared-weight model vars saved in file: %s" % cluster_save_path)
         error_sum = 0.0
         for i in range(no_batches):
             batch_data = train[0][i*batch_size:(i+1)*batch_size]
             batch_target = train[1][i*batch_size:(i+1)*batch_size]
             error = sess.run(model.error, feed_dict = {data:batch_data, target:batch_target})
             error_sum+=100*error
-            print('Macro-Epoch {:2d} Batch {:2d} clustered error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, i+1, 100*error, error_sum/(float(i+1))))
+            print('Macro-Epoch {:2d} Batch {:2d} shared-weight error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, i+1, 100*error, error_sum/(float(i+1))))
         if error_sum/no_batches <= clustered_error_target:
             break
