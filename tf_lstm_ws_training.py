@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import np as np
+import numpy as np
 import cPickle as pickle
 import os
 import functools
