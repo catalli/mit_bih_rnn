@@ -160,24 +160,22 @@ def lazy_property(function):
 def grad_fixed(grad,encoding):
 	#this function takes gradient and encoding, it returns the average gradients for each encoding
 	n_clusters=np.max(encoding)+1
-	
 	masks=[]
 	for enc in range(n_clusters):
-		inds=np.where(encoding == enc)[0]
+		inds=np.where(encoding == enc)
 		w=np.zeros(encoding.shape,dtype=np.float32)
 		w[inds]=1
 		masks.append(tf.constant(w))
-
-	inds=np.where(encoding == 0)[0]
+	inds=np.asarray(np.where(encoding == 0)).transpose()
 	gg=tf.gather_nd(grad,indices=inds)
 	gg=tf.reduce_mean(gg)
-	out_grad=gg*mask[0]	
+	out_grad=gg*masks[0]	
 	for enc in range(1,n_clusters):
-		inds=np.where(encoding == enc)[0]
+		inds=np.asarray(np.where(encoding == enc)).transpose()
 		gg=tf.gather_nd(grad,indices=inds)
 		gg=tf.reduce_mean(gg)
-		out_grad=out_grad+gg*mask[enc]
-
+		out_grad=out_grad+gg*masks[enc]
+        print("out_grad: ", out_grad, "\ngrad", grad)
 	return out_grad	
 		
 			
@@ -260,11 +258,14 @@ class VariableSequenceClassificationSharedWeights:
     @lazy_property
     def optimize(self):
         return self.optimizer.minimize(self.cost)
+    
+    @lazy_property
+    def grads(self):
+        return self.optimizer.compute_gradients(self.cost)
 
     @lazy_property
     def optimize_ws(self):
-        x = self.optimizer.compute_gradients(self.cost)
-        for pair in x:
+        for pair in self.grads:
             if pair[1].name in self.encodings:
                 self.new_grads.append((grad_fixed(pair[0],self.encodings[pair[1].name]),pair[1]))
             else:
