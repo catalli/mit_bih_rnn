@@ -89,7 +89,7 @@ for f in file_names:
 	for ann in this_seq_anns:
 		if data_index < len(data[0]):
 			for r in range(ann[0]-ann[2]+1, ann[0]+1, sampling_divider):
-				print((r-(ann[0]-ann[2]+1))/10)
+				print((r-(ann[0]-ann[2]+1))/sampling_divider)
 				data[0][data_index][(r-(ann[0]-ann[2]+1))/sampling_divider][0] = record.p_signals[r][0]
 				data[0][data_index][(r-(ann[0]-ann[2]+1))/sampling_divider][1] = record.p_signals[r][1]
 				beat_ann = class_map[ann[1]]
