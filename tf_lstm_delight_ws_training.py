@@ -84,66 +84,42 @@ for i in range(len(data_train_or_test)):
                 true_data[0][1][train_index] = data[1][i]
                 train_index+=1
 
-mcmc_train_x = open(mcmc_train_x_path, "w")
-mcmc_train_y = open(mcmc_train_y_path, "w")
+delight_threshold = 0.5
 
-mcmc_test_x = open(mcmc_test_x_path, "w")
-mcmc_test_y = open(mcmc_test_y_path, "w")
+max_b_length = no_features/10
 
+delight_data_train_x = true_data[0][0].reshape((true_data[0][0].shape[0]*true_data[0][0].shape[1],true_data[0][0].shape[2]))
 
-no_samples_written = 0
+delight_b = np.zeros((max_b_length,no_features),dtype=np.float32)
 
-file_no = 0
+delight_b_vacancy = True
 
-mcmc_limit = 10000
+b_alternatives = np.zeros((max_b_length, max_b_length, no_features), dtype=np.float32)
 
-for i in range(no_train):
-        if no_samples_written+len(data[0][0]) > mcmc_limit:
-		mcmc_train_x.close()
-		mcmc_train_y.close()
-                file_no+=1
-		mcmc_train_x_path = ''.join([script_path, "/mcmc_data/mcmc_train_x", str(file_no), ".dat"])
-                mcmc_train_y_path = ''.join([script_path, "/mcmc_data/mcmc_train_y", str(file_no), ".dat"])
-		mcmc_train_x = open(mcmc_train_x_path, "w")
-		mcmc_train_y = open(mcmc_train_y_path, "w")
-		no_samples_written = 0
-	for j in range(len(data[0][0])):
-		if max(true_data[0][0][i][j]) == 0.0:
-			break
-		for k in range(no_features-1):
-			mcmc_train_x.write(str(true_data[0][0][i][j][k]))
-			mcmc_train_x.write("\t")
-		if max(true_data[0][1][i]) > 0.9:
-			mcmc_train_y.write(str(np.float32(np.argmax(true_data[0][1][i]))))
-		else:
-			mcmc_train_y.write(str(np.float32(len(data[1][0]))))
-		mcmc_train_y.write("\n")
-		mcmc_train_x.write(str(true_data[0][0][i][j][no_features-1]))
-		mcmc_train_x.write("\n")
-		no_samples_written+=1
+b_alt_errors = np.zeros((max_b_length+1), dtype=np.float32)
 
-no_samples_written = 0
-file_no = 0
+def delight_error(anew, b):
+   return np.square(np.subtract(np.matmul(np.matmul(np.matmul(b, np.linalg.inv(np.matmul(b.T, b))),b.T), anew), anew)).sum()/np.square(anew).sum()
 
-for i in range(no_test):
-        for j in range(len(data[1][0])):
-		if max(true_data[1][0][i][j]) == 0.0:
-			break
-                for k in range(no_features-1):
-                        mcmc_test_x.write(str(true_data[1][0][i][j][k]))
-                        mcmc_test_x.write("\t")
-                if max(true_data[1][1][i]) > 0.9:
-                        mcmc_test_y.write(str(np.float32(np.argmax(true_data[1][1][i]))))
-                else:
-                        mcmc_test_y.write(str(np.float32(len(data[1][0]))))
-                mcmc_test_y.write("\n")
-                mcmc_test_x.write(str(true_data[1][0][i][j][no_features-1]))
-                mcmc_test_x.write("\n")
-
-mcmc_train_x.close()
-mcmc_train_y.close()
-mcmc_test_x.close()
-mcmc_test_y.close()
+for i in range(len(delight_data_train_x)):
+    if max(delight_data_train_x[i]) > 0.0:
+        if not delight_b_vacancy:
+            for j in range(max_b_length):
+                b_alternatives[j] = delight_b
+                b_alternatives[j][j] = delight_data_train_x[i]
+        for j in range(max_b_length):
+            if delight_b_vacancy:
+                if j == max_b_length-1:
+                    delight_b_vacancy = False
+                if max(delight_b[j]) == 0.0:
+                    delight_b[j] = delight_data_train_x[i]
+                    break
+            else:
+                b_alt_errors[j] = delight_error(delight_data_train_x[i].reshape((1,delight_data_train_x[i].shape[0])).transpose(),b_alternatives[j].T)
+		if not delight_b_vacancy:
+			b_alt_errors[max_b_length] = delight_error(delight_data_train_x[i].reshape((1,delight_data_train_x[i].shape[0])).transpose(),delight_b.T)
+			if np.argmin(b_alt_errors) != max_b_length and b_alt_errors[max_b_length] > delight_threshold:
+				delight_b = b_alternatives[np.argmin(b_alt_errors)]
 
 def lazy_property(function):
     attribute = '_' + function.__name__
@@ -169,32 +145,34 @@ def grad_fixed(grad,encoding):
 	inds=np.asarray(np.where(encoding == 0)).transpose()
 	gg=tf.gather_nd(grad,indices=inds)
 	gg=tf.reduce_mean(gg)
-	out_grad=gg*masks[0]	
+	out_grad=gg*masks[0]
 	for enc in range(1,n_clusters):
 		inds=np.asarray(np.where(encoding == enc)).transpose()
 		gg=tf.gather_nd(grad,indices=inds)
 		gg=tf.reduce_mean(gg)
 		out_grad=out_grad+gg*masks[enc]
         print("out_grad: ", out_grad, "\ngrad", grad)
-	return out_grad	
-		
-			
+	return out_grad
+
+
 # Class definition modified from Danijar Hafner's example at https://gist.github.com/danijar/3f3b547ff68effb03e20c470af22c696
 class VariableSequenceClassificationSharedWeights:
 
-    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
+    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20, delight_dict):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
         self._num_layers = num_layers
         self._num_fc = num_fc
         self._fc_len = fc_len
+		self._delight_dict = delight_dict
         self.encodings = {}
         self.new_grads = []
         self.prediction
         self.error
         self.optimize
         self.optimizer
+		self.delight_dict_tensor
 
     @lazy_property
     def length(self):
@@ -204,8 +182,13 @@ class VariableSequenceClassificationSharedWeights:
         return length
 
     @lazy_property
+	def delight_dict_tensor(self):
+		return tf.convert_to_tensor(self._delight_dict, dtype=tf.float32)
+
+    @lazy_property
     def prediction(self):
         subcells = []
+		true_data = tf.matmul(self.data, self.delight_dict_tensor)
         for i in range(self._num_layers):
                 if i == 0 and self._num_layers > 1:
                     #Dropout added below LSTM layer only, in accordance with http://ieeexplore.ieee.org/document/7333848/?reload=true
@@ -216,7 +199,7 @@ class VariableSequenceClassificationSharedWeights:
         # Recurrent network.
         output, _ = tf.nn.dynamic_rnn(
             main_cell,
-            self.data,
+            true_data,
             dtype=tf.float32,
             sequence_length=self.length,
         )
@@ -258,7 +241,7 @@ class VariableSequenceClassificationSharedWeights:
     @lazy_property
     def optimize(self):
         return self.optimizer.minimize(self.cost)
-    
+
     @lazy_property
     def grads(self):
         return self.optimizer.compute_gradients(self.cost)
@@ -269,7 +252,7 @@ class VariableSequenceClassificationSharedWeights:
             if pair[1].name in self.encodings:
                 self.new_grads.append((grad_fixed(pair[0],self.encodings[pair[1].name]),pair[1]))
             else:
-                self.new_grads.append(pair) 
+                self.new_grads.append(pair)
         return self.optimizer.apply_gradients(self.new_grads)
 
     @lazy_property
@@ -308,13 +291,13 @@ if __name__ == '__main__':
     no_batches = no_examples/batch_size
     data = tf.placeholder(tf.float32, [None, rows, row_size])
     target = tf.placeholder(tf.float32, [None, num_classes])
-    model = VariableSequenceClassificationSharedWeights(data, target)
+    model = VariableSequenceClassificationSharedWeights(data, target, delight_dict=delight_b.T)
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
     print(test[0].shape,test[1].shape)
     saver = tf.train.Saver()
-    
+
     # Implementing random weight sharing as described in https://arxiv.org/pdf/1504.04788.pdf
     for macro_epoch in range(no_macro_epochs):
         _save_path = ''.join([_base_save_path, '-', str(macro_epoch+1)])
