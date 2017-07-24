@@ -23,6 +23,8 @@ else:
 
 _cluster_path = ''.join([_base_save_path, '.clustered'])
 
+_dict_path = ''.join([script_path, '/mit_bih_delight_dict.pkl'])
+
 data_file = open(data_path, 'r')
 
 data = pickle.load(data_file)
@@ -41,7 +43,7 @@ no_macro_epochs = 10
 
 #Non-patient-specific-training error target from state-of-the-art of 2017: http://ieeexplore.ieee.org/document/7893269/
 error_target = 2.0
-clustered_error_target = 2.0
+clustered_error_target = 5.0
 
 def feed_windows(_data, _window_skip, _window_len, _features_per_step):
     data_seq = np.zeros((len(_data),_window_len*_features_per_step))
@@ -93,7 +95,7 @@ b_alternatives = np.zeros((max_b_length, max_b_length, no_features), dtype=np.fl
 b_alt_errors = np.zeros((max_b_length+1), dtype=np.float32)
 
 def delight_error(anew, b):
-   return np.square(np.subtract(np.matmul(np.matmul(np.matmul(b, np.linalg.inv(np.matmul(b.T, b))),b.T), anew), anew)).sum()/np.square(anew).sum()
+   return np.square(np.subtract(np.matmul(np.matmul(np.matmul(b, np.linalg.pinv(np.matmul(b.T, b))),b.T), anew), anew)).sum()/np.square(anew).sum()
 
 for i in range(len(delight_data_train_x)):
     if max(delight_data_train_x[i]) > 0.0:
@@ -115,7 +117,11 @@ for i in range(len(delight_data_train_x)):
 			if np.argmin(b_alt_errors) != max_b_length and b_alt_errors[max_b_length] > delight_threshold:
 				delight_b = b_alternatives[np.argmin(b_alt_errors)]
 
-@lazy_property(function):
+dict_save = open(_dict_path, "w")
+pickle.dump(delight_b, dict_save)
+dict_save.close()
+
+def lazy_property(function):
     attribute = '_' + function.__name__
 
     @property
@@ -130,22 +136,22 @@ for i in range(len(delight_data_train_x)):
 
 class VariableSequenceClassification:
 
-    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20, delight_dict):
+    def __init__(self, data, target, delight_dict, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
         self._num_layers = num_layers
         self._num_fc = num_fc
         self._fc_len = fc_len
-		self._delight_dict = delight_dict
+	self._delight_dict = delight_dict
         self.prediction
         self.error
         self.optimize
         self.delight_dict_tensor
 
     @lazy_property
-	def delight_dict_tensor(self):
-		return tf.convert_to_tensor(self._delight_dict, dtype=tf.float32)
+    def delight_dict_tensor(self):
+        return tf.convert_to_tensor(self._delight_dict, dtype=tf.float32)
 
     @lazy_property
     def length(self):
@@ -157,7 +163,7 @@ class VariableSequenceClassification:
     @lazy_property
     def prediction(self):
         subcells = []
-		true_data = tf.matmul(self.data, self.delight_dict_tensor)
+        true_data = tf.matmul(self.data, self.delight_dict_tensor)
         for i in range(self._num_layers):
                 if i == 0 and self._num_layers > 1:
                     #Dropout added below LSTM layer only, in accordance with http://ieeexplore.ieee.org/document/7333848/?reload=true

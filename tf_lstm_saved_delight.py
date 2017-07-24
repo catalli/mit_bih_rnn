@@ -12,7 +12,15 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih.pkl"])
+data_path = ''.join([script_path, "/mit_bih_delight.pkl"])
+
+_dict_path = ''.join([script_path, '/mit_bih_delight_dict.pkl'])
+
+dict_load = open(_dict_path, 'r')
+
+delight_b = pickle.load(dict_load)
+
+dict_load.close()
 
 mcmc_train_x_path = ''.join([script_path, "/mcmc_train_x.dat"])
 mcmc_train_y_path = ''.join([script_path, "/mcmc_train_y.dat"])
@@ -87,16 +95,22 @@ def lazy_property(function):
 
 class VariableSequenceClassification:
 
-    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
+    def __init__(self, data, target, delight_dict, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
         self._num_layers = num_layers
         self._num_fc = num_fc
         self._fc_len = fc_len
+        self._delight_dict = delight_dict
         self.prediction
         self.error
         self.optimize
+        self.delight_dict_tensor
+
+    @lazy_property
+    def delight_dict_tensor(self):
+        return tf.convert_to_tensor(self._delight_dict, dtype=tf.float32)
 
     @lazy_property
     def length(self):
@@ -108,6 +122,7 @@ class VariableSequenceClassification:
     @lazy_property
     def prediction(self):
         subcells = []
+        true_data = tf.matmul(self.data, self.delight_dict_tensor)
         for i in range(self._num_layers):
                 if i == 0 and self._num_layers > 1:
 		    subcells.append(tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(self._num_hidden, initializer=tf.contrib.layers.xavier_initializer()), input_keep_prob = 0.8))
@@ -117,7 +132,7 @@ class VariableSequenceClassification:
         # Recurrent network.
         output, _ = tf.nn.dynamic_rnn(
             main_cell,
-            self.data,
+            true_data,
             dtype=tf.float32,
             sequence_length=self.length,
         )
@@ -192,7 +207,7 @@ if __name__ == '__main__':
     no_batches = no_examples/batch_size
     data = tf.placeholder(tf.float32, [None, rows, row_size])
     target = tf.placeholder(tf.float32, [None, num_classes])
-    model = VariableSequenceClassification(data, target)
+    model = VariableSequenceClassification(data, target, delight_dict = delight_b.T)
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     print(test[0].shape,test[1].shape)
