@@ -13,7 +13,7 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih_delight_projected.pkl"])
+data_path = ''.join([script_path, "/mit_bih_delight_projected_10.pkl"])
 
 if len(sys.argv) > 1:
 	_base_save_path = sys.argv[1]
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     train = all_data[0]
     test = all_data[1]
     conf_weights =  np.sum(test[1], axis=0)
-    batch_size = 100
+    batch_size = 200
     no_examples, rows, row_size = train[0].shape
     num_classes = len(train[1][0])
     no_batches = no_examples/batch_size
