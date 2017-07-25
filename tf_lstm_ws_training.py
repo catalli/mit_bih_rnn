@@ -84,66 +84,14 @@ for i in range(len(data_train_or_test)):
                 true_data[0][1][train_index] = data[1][i]
                 train_index+=1
 
-mcmc_train_x = open(mcmc_train_x_path, "w")
-mcmc_train_y = open(mcmc_train_y_path, "w")
-
-mcmc_test_x = open(mcmc_test_x_path, "w")
-mcmc_test_y = open(mcmc_test_y_path, "w")
-
-
-no_samples_written = 0
-
-file_no = 0
-
-mcmc_limit = 10000
-
-for i in range(no_train):
-        if no_samples_written+len(data[0][0]) > mcmc_limit:
-		mcmc_train_x.close()
-		mcmc_train_y.close()
-                file_no+=1
-		mcmc_train_x_path = ''.join([script_path, "/mcmc_data/mcmc_train_x", str(file_no), ".dat"])
-                mcmc_train_y_path = ''.join([script_path, "/mcmc_data/mcmc_train_y", str(file_no), ".dat"])
-		mcmc_train_x = open(mcmc_train_x_path, "w")
-		mcmc_train_y = open(mcmc_train_y_path, "w")
-		no_samples_written = 0
-	for j in range(len(data[0][0])):
-		if max(true_data[0][0][i][j]) == 0.0:
-			break
-		for k in range(no_features-1):
-			mcmc_train_x.write(str(true_data[0][0][i][j][k]))
-			mcmc_train_x.write("\t")
-		if max(true_data[0][1][i]) > 0.9:
-			mcmc_train_y.write(str(np.float32(np.argmax(true_data[0][1][i]))))
-		else:
-			mcmc_train_y.write(str(np.float32(len(data[1][0]))))
-		mcmc_train_y.write("\n")
-		mcmc_train_x.write(str(true_data[0][0][i][j][no_features-1]))
-		mcmc_train_x.write("\n")
-		no_samples_written+=1
-
-no_samples_written = 0
-file_no = 0
-
-for i in range(no_test):
-        for j in range(len(data[1][0])):
-		if max(true_data[1][0][i][j]) == 0.0:
-			break
-                for k in range(no_features-1):
-                        mcmc_test_x.write(str(true_data[1][0][i][j][k]))
-                        mcmc_test_x.write("\t")
-                if max(true_data[1][1][i]) > 0.9:
-                        mcmc_test_y.write(str(np.float32(np.argmax(true_data[1][1][i]))))
-                else:
-                        mcmc_test_y.write(str(np.float32(len(data[1][0]))))
-                mcmc_test_y.write("\n")
-                mcmc_test_x.write(str(true_data[1][0][i][j][no_features-1]))
-                mcmc_test_x.write("\n")
-
-mcmc_train_x.close()
-mcmc_train_y.close()
-mcmc_test_x.close()
-mcmc_test_y.close()
+for i in range(len(true_data[0][0])):
+    all_zero_index = 0
+    for j in range(len(true_data[0][0][0])):
+        if max(true_data[0][0][i][j]) == 0.0 and min(true_data[0][0][i][j]) == 0.0:
+            all_zero_index = j
+            break
+    if all_zero_index > no_features/window_skip/len(data[0][0][0])-1:
+        true_data[0][0][i][all_zero_index-no_features/window_skip/len(data[0][0][0]):] = np.zeros((len(data[0][0])-(all_zero_index-no_features/window_skip/len(data[0][0][0])), no_features),dtype=np.float32)
 
 def lazy_property(function):
     attribute = '_' + function.__name__

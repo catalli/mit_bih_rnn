@@ -86,9 +86,19 @@ for i in range(len(data_train_or_test)):
                 true_data[0][1][train_index] = data[1][i]
                 train_index+=1
 
-delight_threshold = 0.5
+for i in range(len(true_data[0][0])):
+    all_zero_index = 0
+    for j in range(len(true_data[0][0][0])):
+        if max(true_data[0][0][i][j]) == 0.0 and min(true_data[0][0][i][j]) == 0.0:
+            all_zero_index = j
+            break
+    if all_zero_index > no_features/window_skip/len(data[0][0][0])-1:
+        true_data[0][0][i][all_zero_index-no_features/window_skip/len(data[0][0][0]):] = np.zeros((len(data[0][0])-(all_zero_index-no_features/window_skip/len(data[0][0][0])), no_features),dtype=np.float32)
 
-max_b_length = no_features/10
+
+delight_threshold = 5.0e-7
+
+max_b_length = no_features/100
 
 delight_data_train_x = true_data[0][0].reshape((true_data[0][0].shape[0]*true_data[0][0].shape[1],true_data[0][0].shape[2]))
 
@@ -105,23 +115,27 @@ def delight_error(anew, b):
 
 for i in range(len(delight_data_train_x)):
     if max(delight_data_train_x[i]) > 0.0:
+        print("Evaluating window no. ", i ," of ", len(delight_data_train_x))
         if not delight_b_vacancy:
             for j in range(max_b_length):
                 b_alternatives[j] = delight_b
-                b_alternatives[j][j] = delight_data_train_x[i]
+                b_alternatives[j][j] = delight_data_train_x[i]/np.linalg.norm(delight_data_train_x[i])
         for j in range(max_b_length):
             if delight_b_vacancy:
                 if j == max_b_length-1:
                     delight_b_vacancy = False
                 if max(delight_b[j]) == 0.0:
-                    delight_b[j] = delight_data_train_x[i]
+                    delight_b[j] = delight_data_train_x[i]/np.linalg.norm(delight_data_train_x[i])
                     break
             else:
                 b_alt_errors[j] = delight_error(delight_data_train_x[i].reshape((1,delight_data_train_x[i].shape[0])).transpose(),b_alternatives[j].T)
-		if not delight_b_vacancy:
-			b_alt_errors[max_b_length] = delight_error(delight_data_train_x[i].reshape((1,delight_data_train_x[i].shape[0])).transpose(),delight_b.T)
-			if np.argmin(b_alt_errors) != max_b_length and b_alt_errors[max_b_length] > delight_threshold:
-				delight_b = b_alternatives[np.argmin(b_alt_errors)]
+        if not delight_b_vacancy:
+                b_alt_errors[max_b_length] = delight_error(delight_data_train_x[i].reshape((1,delight_data_train_x[i].shape[0])).transpose(),delight_b.T)
+                print("b_alt_errors: ", b_alt_errors)
+                if np.argmin(b_alt_errors) != max_b_length and b_alt_errors[max_b_length] > delight_threshold:
+                    print("Replacing row ", np.argmin(b_alt_errors), " with window ", i)
+                    delight_b = b_alternatives[np.argmin(b_alt_errors)]
+
 dict_save = open(_dict_path, "w")
 
 pickle.dump(delight_b, dict_save)

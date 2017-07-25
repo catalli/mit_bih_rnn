@@ -72,6 +72,15 @@ for i in range(len(data_train_or_test)):
                 true_data[0][1][train_index] = data[1][i]
                 train_index+=1
 
+for i in range(len(true_data[0][0])):
+    all_zero_index = 0
+    for j in range(len(true_data[0][0][0])):
+        if max(true_data[0][0][i][j]) == 0.0 and min(true_data[0][0][i][j]) == 0.0:
+            all_zero_index = j
+            break
+    if all_zero_index > no_features/window_skip/len(data[0][0][0])-1:
+        true_data[0][0][i][all_zero_index-no_features/window_skip/len(data[0][0][0]):] = np.zeros((len(data[0][0])-(all_zero_index-no_features/window_skip/len(data[0][0][0])), no_features),dtype=np.float32)
+
 def lazy_property(function):
     attribute = '_' + function.__name__
 
