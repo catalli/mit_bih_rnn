@@ -12,82 +12,20 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih_delight.pkl"])
-
-_dict_path = ''.join([script_path, '/mit_bih_delight_dict.pkl'])
-
-dict_load = open(_dict_path, 'r')
-
-delight_b = pickle.load(dict_load)
-
-dict_load.close()
-
-mcmc_train_x_path = ''.join([script_path, "/mcmc_train_x.dat"])
-mcmc_train_y_path = ''.join([script_path, "/mcmc_train_y.dat"])
-
-mcmc_test_x_path = ''.join([script_path, "/mcmc_test_x.dat"])
-mcmc_test_y_path = ''.join([script_path, "/mcmc_test_y.dat"])
+data_path = ''.join([script_path, "/mit_bih_delight_projected.pkl"])
 
 if len(sys.argv) > 1:
 	_save_path = sys.argv[1]
 
 else:
-	_save_path = ''.join([script_path, '/logs/vars/tmp/model.ckpt'])
+	_save_path = ''.join([script_path, '/logs/vars/tmp_delight/model.ckpt'])
 
 data_file = open(data_path, 'r')
 
-data = pickle.load(data_file)
+true_data = pickle.load(data_file)
 
 data_file.close()
 
-window_length = 10
-
-window_skip = 1
-
-no_features = window_length * len(data[0][0][0])
-
-def feed_windows(_data, _window_skip, _window_len, _features_per_step):
-    data_seq = np.zeros((len(_data),_window_len*_features_per_step))
-    window_start_index = 0
-    window_end_index = window_start_index+_window_len
-    in_seq_index = 0
-    while window_end_index < len(_data):
-        data_window = _data[window_start_index:window_end_index].flatten()
-        data_seq[in_seq_index] = data_window
-        in_seq_index+=1
-        window_start_index+=_window_skip
-        window_end_index+=_window_skip
-    return data_seq
-
-data_train_or_test = data[2]
-no_train = len(data_train_or_test)-np.sum(data_train_or_test)
-no_test = np.sum(data_train_or_test)
-
-true_data = [[np.zeros((no_train, len(data[0][0]), no_features),dtype=np.float32), np.zeros((no_train, len(data[1][0])),dtype=np.float32)],[np.zeros((no_test, len(data[0][0]), no_features),dtype=np.float32), np.zeros((no_test, len(data[1][0])),dtype=np.float32)]]
-
-print("no_train: ",no_train,"\nno_test: ",no_test)
-
-test_index = 0
-train_index = 0
-
-for i in range(len(data_train_or_test)):
-	if data_train_or_test[i]:
-		true_data[1][0][test_index] = feed_windows(data[0][i],window_skip,window_length,len(data[0][0][0]))
-		true_data[1][1][test_index] = data[1][i]
-		test_index+=1
-	else:
-                true_data[0][0][train_index] = feed_windows(data[0][i],window_skip,window_length,len(data[0][0][0]))
-                true_data[0][1][train_index] = data[1][i]
-                train_index+=1
-
-for i in range(len(true_data[0][0])):
-    all_zero_index = 0
-    for j in range(len(true_data[0][0][0])):
-        if max(true_data[0][0][i][j]) == 0.0 and min(true_data[0][0][i][j]) == 0.0:
-            all_zero_index = j
-            break
-    if all_zero_index > no_features/window_skip/len(data[0][0][0])-1:
-        true_data[0][0][i][all_zero_index-no_features/window_skip/len(data[0][0][0]):] = np.zeros((len(data[0][0])-(all_zero_index-no_features/window_skip/len(data[0][0][0])), no_features),dtype=np.float32)
 
 def lazy_property(function):
     attribute = '_' + function.__name__
@@ -104,22 +42,16 @@ def lazy_property(function):
 
 class VariableSequenceClassification:
 
-    def __init__(self, data, target, delight_dict, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
+    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
         self._num_layers = num_layers
         self._num_fc = num_fc
         self._fc_len = fc_len
-        self._delight_dict = delight_dict
         self.prediction
         self.error
         self.optimize
-        self.delight_dict_tensor
-
-    @lazy_property
-    def delight_dict_tensor(self):
-        return tf.convert_to_tensor(self._delight_dict, dtype=tf.float32)
 
     @lazy_property
     def length(self):
@@ -131,7 +63,6 @@ class VariableSequenceClassification:
     @lazy_property
     def prediction(self):
         subcells = []
-        true_data = tf.matmul(self.data, self.delight_dict_tensor)
         for i in range(self._num_layers):
                 if i == 0 and self._num_layers > 1:
 		    subcells.append(tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(self._num_hidden, initializer=tf.contrib.layers.xavier_initializer()), input_keep_prob = 0.8))
@@ -141,7 +72,7 @@ class VariableSequenceClassification:
         # Recurrent network.
         output, _ = tf.nn.dynamic_rnn(
             main_cell,
-            true_data,
+            self.data,
             dtype=tf.float32,
             sequence_length=self.length,
         )
@@ -216,7 +147,7 @@ if __name__ == '__main__':
     no_batches = no_examples/batch_size
     data = tf.placeholder(tf.float32, [None, rows, row_size])
     target = tf.placeholder(tf.float32, [None, num_classes])
-    model = VariableSequenceClassification(data, target, delight_dict = delight_b.T)
+    model = VariableSequenceClassification(data, target)
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     print(test[0].shape,test[1].shape)

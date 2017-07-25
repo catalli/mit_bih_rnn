@@ -35,7 +35,7 @@ data = pickle.load(data_file)
 
 data_file.close()
 
-window_length = 10
+window_length = 5
 
 window_skip = 1
 

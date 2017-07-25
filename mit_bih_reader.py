@@ -22,7 +22,7 @@ for root, dirs, filenames in os.walk(dl_path):
 sequence_lengths = []
 no_seqs = 0
 
-sampling_divider = 10
+sampling_divider = 20
 
 beat_classes = ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', 'e', 'j', 'E', '/', 'f','!']
 
