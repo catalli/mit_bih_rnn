@@ -12,74 +12,20 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih.pkl"])
-
-mcmc_train_x_path = ''.join([script_path, "/mcmc_train_x.dat"])
-mcmc_train_y_path = ''.join([script_path, "/mcmc_train_y.dat"])
-
-mcmc_test_x_path = ''.join([script_path, "/mcmc_test_x.dat"])
-mcmc_test_y_path = ''.join([script_path, "/mcmc_test_y.dat"])
+data_path = ''.join([script_path, "/mit_bih_delight_subsampled.pkl"])
 
 if len(sys.argv) > 1:
 	_save_path = sys.argv[1]
 
 else:
-	_save_path = ''.join([script_path, '/logs/vars/tmp/model.ckpt'])
+	_save_path = ''.join([script_path, '/logs/vars/tmp_delight/model.ckpt'])
 
 data_file = open(data_path, 'r')
 
-data = pickle.load(data_file)
+true_data = pickle.load(data_file)
 
 data_file.close()
 
-window_length = 10
-
-window_skip = 1
-
-no_features = window_length * len(data[0][0][0])
-
-def feed_windows(_data, _window_skip, _window_len, _features_per_step):
-    data_seq = np.zeros((len(_data),_window_len*_features_per_step))
-    window_start_index = 0
-    window_end_index = window_start_index+_window_len
-    in_seq_index = 0
-    while window_end_index < len(_data):
-        data_window = _data[window_start_index:window_end_index].flatten()
-        data_seq[in_seq_index] = data_window
-        in_seq_index+=1
-        window_start_index+=_window_skip
-        window_end_index+=_window_skip
-    return data_seq
-
-data_train_or_test = data[2]
-no_train = len(data_train_or_test)-np.sum(data_train_or_test)
-no_test = np.sum(data_train_or_test)
-
-true_data = [[np.zeros((no_train, len(data[0][0]), no_features),dtype=np.float32), np.zeros((no_train, len(data[1][0])),dtype=np.float32)],[np.zeros((no_test, len(data[0][0]), no_features),dtype=np.float32), np.zeros((no_test, len(data[1][0])),dtype=np.float32)]]
-
-print("no_train: ",no_train,"\nno_test: ",no_test)
-
-test_index = 0
-train_index = 0
-
-for i in range(len(data_train_or_test)):
-	if data_train_or_test[i]:
-		true_data[1][0][test_index] = feed_windows(data[0][i],window_skip,window_length,len(data[0][0][0]))
-		true_data[1][1][test_index] = data[1][i]
-		test_index+=1
-	else:
-                true_data[0][0][train_index] = feed_windows(data[0][i],window_skip,window_length,len(data[0][0][0]))
-                true_data[0][1][train_index] = data[1][i]
-                train_index+=1
-
-for i in range(len(true_data[0][0])):
-    all_zero_index = 0
-    for j in range(len(true_data[0][0][0])):
-        if max(true_data[0][0][i][j]) == 0.0 and min(true_data[0][0][i][j]) == 0.0:
-            all_zero_index = j
-            break
-    if all_zero_index > no_features/window_skip/len(data[0][0][0])-1:
-        true_data[0][0][i][all_zero_index-no_features/window_skip/len(data[0][0][0]):] = np.zeros((len(data[0][0])-(all_zero_index-no_features/window_skip/len(data[0][0][0])), no_features),dtype=np.float32)
 
 def lazy_property(function):
     attribute = '_' + function.__name__

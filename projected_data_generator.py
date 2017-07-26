@@ -5,9 +5,7 @@ import numpy as np
 import cPickle as pickle
 import os
 import functools
-import tensorflow as tf
 import sys
-from Hlookup import cluster
 
 np.set_printoptions(threshold=np.nan)
 
@@ -26,6 +24,13 @@ else:
 
 _dict_path = ''.join([script_path, '/mit_bih_delight_dict.pkl'])
 
+if reuse_dict:
+    dict_load = open(_dict_path, 'r')
+    delight_b = pickle.load(dict_load)
+    dict_load.close()
+    max_b_length = len(delight_b)
+
+
 data_file = open(data_path, 'r')
 
 data = pickle.load(data_file)
@@ -34,9 +39,9 @@ data_file.close()
 
 window_length = 100
 
-window_skip = 20
-
 no_features = window_length * len(data[0][0][0])
+
+window_skip = no_features/max_b_length
 
 no_epochs = 400
 no_centroids = 4
@@ -88,7 +93,16 @@ for i in range(len(true_data[0][0])):
             all_zero_index = j
             break
     if all_zero_index > no_features/len(data[0][0][0])-1:
-        true_data[0][0][i][all_zero_index-no_features/len(data[0][0][0]):] = np.zeros((len(data[0][0])-(all_zero_index-no_features/len(data[0][0][0])), no_features),dtype=np.float32)
+        true_data[0][0][i][all_zero_index-no_features/len(data[0][0][0])/window_skip:] = np.zeros((len(data[0][0])/window_skip-(all_zero_index-no_features/len(data[0][0][0])/window_skip), no_features),dtype=np.float32)
+
+for i in range(len(true_data[1][0])):
+    all_zero_index = 0
+    for j in range(len(true_data[1][0][0])):
+        if max(true_data[1][0][i][j]) == 0.0 and min(true_data[1][0][i][j]) == 0.0:
+            all_zero_index = j
+            break
+    if all_zero_index > no_features/len(data[0][0][0])-1:
+        true_data[1][0][i][all_zero_index-no_features/len(data[0][0][0])/window_skip:] = np.zeros((len(data[0][0])/window_skip-(all_zero_index-no_features/len(data[0][0][0])/window_skip), no_features),dtype=np.float32)
 
 if not reuse_dict:
     delight_threshold = 8.0e-7
@@ -142,10 +156,6 @@ if not reuse_dict:
     pickle.dump(delight_b, dict_save)
     dict_save.close()
 
-else:
-    dict_load = open(_dict_path, 'r')
-    delight_b = pickle.load(dict_load)
-    dict_load.close()
 
 true_data[0][0] = np.matmul(true_data[0][0], delight_b.T)
 true_data[1][0] = np.matmul(true_data[1][0], delight_b.T)
