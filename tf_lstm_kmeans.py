@@ -13,7 +13,7 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih_delight_subsampled.pkl"])
+data_path = ''.join([script_path, "/mit_bih_delight_projected.pkl"])
 
 if len(sys.argv) > 1:
 	_base_save_path = sys.argv[1]
