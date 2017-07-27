@@ -52,7 +52,7 @@ def lazy_property(function):
 
 class VariableSequenceClassification:
 
-    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
+    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=1, fc_len=20):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden

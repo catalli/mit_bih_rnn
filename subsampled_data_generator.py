@@ -11,16 +11,16 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih_delight.pkl"])
+data_path = ''.join([script_path, "/chfdb_delight.pkl"])
 
 reuse_dict = True
 
 if len(sys.argv) > 1:
 	sampling_divider = int(sys.argv[1])
-        data_save_path = ''.join([script_path, "/mit_bih_delight_subsampled_", sys.argv[1], ".pkl"])
+        data_save_path = ''.join([script_path, "/chfdb_subsampled_", sys.argv[1], ".pkl"])
         reuse_dict = False
 else:
-	data_save_path = ''.join([script_path, "/mit_bih_delight_subsampled.pkl"])
+	data_save_path = ''.join([script_path, "/chfdb_subsampled.pkl"])
         sampling_divider = 20
 
 

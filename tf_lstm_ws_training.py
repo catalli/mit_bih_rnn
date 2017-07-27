@@ -74,7 +74,7 @@ def grad_fixed(grad,encoding):
 # Class definition modified from Danijar Hafner's example at https://gist.github.com/danijar/3f3b547ff68effb03e20c470af22c696
 class VariableSequenceClassificationSharedWeights:
 
-    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=2, fc_len=20):
+    def __init__(self, data, target, num_hidden=150, num_layers=2, num_fc=1, fc_len=20):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
@@ -248,8 +248,6 @@ if __name__ == '__main__':
                 error = sess.run(model.error, feed_dict = {data:batch_data, target:batch_target})
                 error_sum+=100*error
                 print('Macro-Epoch {:2d} Batch {:2d} shared-weight error {:3.1f}% cumulative error {:3.1f}%'.format(macro_epoch+1, i+1, 100*error, error_sum/(float(i+1))))
-            if error_sum/no_batches <= clustered_error_target:
-                break
 
         else:
             for epoch in range(no_epochs):
