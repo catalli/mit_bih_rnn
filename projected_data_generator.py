@@ -11,13 +11,13 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/stdb_delight.pkl"])
+data_path = ''.join([script_path, "/mit_bih_delight.pkl"])
 
 reuse_dict = True
 
 if len(sys.argv) > 1:
 	max_b_length = int(sys.argv[1])
-        data_save_path = ''.join([script_path, "/stdb_projected_", sys.argv[1], ".pkl"])
+        data_save_path = ''.join([script_path, "/mit_bih_projected_", sys.argv[1], ".pkl"])
         reuse_dict = False
 else:
 	data_save_path = ''.join([script_path, "/stdb_projected.pkl"])
