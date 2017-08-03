@@ -11,16 +11,16 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/chfdb_delight.pkl"])
+data_path = ''.join([script_path, "/stdb_delight.pkl"])
 
 reuse_dict = True
 
 if len(sys.argv) > 1:
 	sampling_divider = int(sys.argv[1])
-        data_save_path = ''.join([script_path, "/chfdb_subsampled_", sys.argv[1], ".pkl"])
+        data_save_path = ''.join([script_path, "/stdb_subsampled_", sys.argv[1], ".pkl"])
         reuse_dict = False
 else:
-	data_save_path = ''.join([script_path, "/chfdb_subsampled.pkl"])
+	data_save_path = ''.join([script_path, "/stdb_subsampled.pkl"])
         sampling_divider = 20
 
 
@@ -45,7 +45,7 @@ error_target = 2.0
 clustered_error_target = 5.0
 
 def feed_windows(_data, _window_skip, _window_len, _features_per_step, _sampling_divider):
-    data_seq = np.zeros((len(_data)/_window_skip,(_window_len/_sampling_divider)*_features_per_step))
+    data_seq = np.zeros((len(_data)/_window_skip,(_window_len*_features_per_step)/_sampling_divider))
     window_start_index = 0
     window_end_index = window_start_index+_window_len
     in_seq_index = 0
