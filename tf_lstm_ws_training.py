@@ -13,7 +13,7 @@ np.set_printoptions(threshold=np.nan)
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-data_path = ''.join([script_path, "/mit_bih_projected_10.pkl"])
+data_path = ''.join([script_path, "/ltafdb_projected_8.pkl"])
 
 if len(sys.argv) > 1:
 	_base_save_path = sys.argv[1]
@@ -34,7 +34,7 @@ no_centroids = 4
 no_macro_epochs = 2
 
 #Non-patient-specific-training error target from state-of-the-art of 2017: http://ieeexplore.ieee.org/document/7893269/
-error_target = 1.0
+error_target = 2.0
 clustered_error_target = 2.0
 
 def lazy_property(function):

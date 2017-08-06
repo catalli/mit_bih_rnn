@@ -4,13 +4,18 @@ import os
 import wfdb
 import numpy as np
 import pickle
+import sys
 
-db_dir = "/mit-bih-arr/"
+db_dir = "mitdb"
+
+if len(sys.argv) > 1:
+	db_dir = sys.argv[1]
+
 script_path = os.path.dirname(os.path.realpath(__file__))
-dl_path = ''.join([script_path, db_dir])
-output_path = ''.join([script_path, '/mit_bih_delight.pkl'])
+dl_path = ''.join([script_path, "/",db_dir,"/"])
+output_path = ''.join([script_path, "/",db_dir,'.pkl'])
 print("Reading data from ",dl_path)
-#wfdb.dldatabase("mitdb", dl_path)
+wfdb.dldatabase(db_dir, dl_path)
 file_names = []
 for root, dirs, filenames in os.walk(dl_path):
 	for f in filenames:
@@ -23,10 +28,12 @@ sequence_lengths = []
 no_seqs = 0
 
 
-beat_classes = ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', 'e', 'j', 'E', '/', 'f','!']
+#beat_classes = ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', 'e', 'j', 'E', '/', 'f','!']
+
+beat_classes = ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'e', 'j', 'E', '/', 'f','!']
 
 #Classes collapsed and quotas set based on https://www.researchgate.net/figure/51772483_tbl1_Table-1-Mapping-of-MIT-BIH-arrhythmia-database-heartbeat-types-to-the-AAMI-heartbeat
-aami_classes = ['N', 'S', 'V', 'F']
+aami_classes = ['N', 'S', 'V']
 
 class_map = {'N':'N','L':'N','R':'N','A':'S','a':'S','J':'S','S':'S','V':'V','F':'F','e':'N','j':'N','E':'V','/':'N','f':'N','!':'V'}
 
@@ -34,11 +41,16 @@ relevant_anns = []
 
 all_sequence_anns = []
 
-seq_quota = 30000
+seq_quota = 300000
 
-type_quotas = [600,600,600,600,148,84,2,600,600,16,228,106,600,600,472]
+#type_quotas = [600,600,600,600,148,84,2,600,600,16,228,106,600,600,472]
 
-test_quotas = [250,250,250,250,74,41,1,250,250,8,113,53,250,250,236]
+#test_quotas = [250,250,250,250,74,41,1,250,250,8,113,53,250,250,236]
+
+type_quotas = [6000,6000,6000,6000,6000,6000,6000,6000,6000,6000,6000,6000,6000,6000,6000]
+
+test_quotas = [1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500]
+
 for f in file_names:
 	record = wfdb.rdsamp(f)
 	annotation = wfdb.rdann(f, 'atr')
@@ -65,7 +77,7 @@ max_len = max(sequence_lengths)
 
 print("no_seqs: ",no_seqs," max_len: ",max_len)
 
-data = [np.zeros((no_seqs,max_len,2), dtype=np.float32), np.zeros((no_seqs, len(aami_classes)), dtype=np.float32), np.zeros((no_seqs),dtype=np.int32)]
+data = [np.zeros((no_seqs,max_len,len(record.p_signals[0])), dtype=np.float32), np.zeros((no_seqs, len(aami_classes)), dtype=np.float32), np.zeros((no_seqs),dtype=np.int32)]
 
 bih_anns_in_order = []
 
@@ -89,8 +101,8 @@ for f in file_names:
 		if data_index < len(data[0]):
 			for r in range(ann[0]-ann[2]+1, ann[0]+1):
 				print((r-(ann[0]-ann[2]+1)))
-				data[0][data_index][(r-(ann[0]-ann[2]+1))][0] = record.p_signals[r][0]
-				data[0][data_index][(r-(ann[0]-ann[2]+1))][1] = record.p_signals[r][1]
+                                for m in range(len(data[0][0][0])):
+					data[0][data_index][(r-(ann[0]-ann[2]+1))][m] = record.p_signals[r][m]
 				beat_ann = class_map[ann[1]]
 			if beat_ann != 'Q' and beat_ann != '':
 				data[1][data_index][aami_classes.index(beat_ann)] = 1.0
